@@ -1,0 +1,75 @@
+name: CI/CD Pipeline Next.js App
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout kode
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Setup pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+
+      # 3. Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      # 4. Install dependencies
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 5. Build the application
+      - name: Build application
+        run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+      # 6. Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/my-projectapp:latest -f DockerFile .
+          docker tag ghcr.io/${{ github.repository }}/my-projectapp:latest ghcr.io/${{ github.repository }}/my-projectapp:${{ github.sha }}
+
+      # 7. Login ke GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 8. Push Docker image
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/${{ github.repository }}/my-projectapp:latest
+          docker push ghcr.io/${{ github.repository }}/my-projectapp:${{ github.sha }}
+
+      # 9. Update Kubernetes deployment (optional)
+      - name: Update Kubernetes deployment image
+        run: |
+          sed -i "s|image: my-projectapp:latest|image: ghcr.io/${{ github.repository }}/my-projectapp:${{ github.sha }}|g" k8s-deployment.yaml
+        
+      # 10. Deploy to Kubernetes (uncomment if you have kubectl configured)
+      # - name: Deploy to Kubernetes
+      #   run: |
+      #     kubectl apply -f k8s-deployment.yaml
+      #   env:
+      #     KUBECONFIG: ${{ secrets.KUBECONFIG }}
