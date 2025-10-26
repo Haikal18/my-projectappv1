@@ -94,18 +94,18 @@ jobs:
       # 2. Update image di k8s-deployment.yaml
       - name: 🔄 Update Kubernetes manifest
         run: |
-          sed -i "s|image: my-projectapp:latest|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest|g" k8s-deployment.yaml
+          sed -i "s|image: ghcr.io/haikal18/my-projectappv1/my-projectapp:latest|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest|g" k8s-deployment.yaml
           cat k8s-deployment.yaml
 
       # 3. Deploy ke MicroK8s
       - name: 🚀 Deploy to MicroK8s
         run: |
-          microk8s kubectl apply -f k8s-deployment.yaml
+          microk8s.kubectl apply -f k8s-deployment.yaml
           
       # 4. Tunggu deployment selesai
       - name: ⏳ Wait for deployment rollout
         run: |
-          microk8s kubectl rollout status deployment/my-projectapp -n default --timeout=300s
+          microk8s.kubectl rollout status deployment/my-projectapp -n default --timeout=300s
           
       # 5. Verify deployment
       - name: ✅ Verify deployment
@@ -113,24 +113,24 @@ jobs:
           echo "### ✨ Deployment Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get pods -l app=my-projectapp >> $GITHUB_STEP_SUMMARY
+          microk8s.kubectl get pods -l app=my-projectapp >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get svc my-projectapp-service >> $GITHUB_STEP_SUMMARY
+          microk8s.kubectl get svc my-projectapp-service >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get hpa my-projectapp-hpa >> $GITHUB_STEP_SUMMARY
+          microk8s.kubectl get hpa my-projectapp-hpa >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           
       # 6. Get service URL
       - name: 🌐 Get Service URL
         run: |
-          SERVICE_IP=$(microk8s kubectl get svc my-projectapp-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          SERVICE_IP=$(microk8s.kubectl get svc my-projectapp-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
           if [ -z "$SERVICE_IP" ]; then
-            SERVICE_IP=$(microk8s kubectl get svc my-projectapp-service -o jsonpath='{.spec.clusterIP}')
+            SERVICE_IP=$(microk8s.kubectl get svc my-projectapp-service -o jsonpath='{.spec.clusterIP}')
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**🎯 Access your app at:** http://$SERVICE_IP" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Local access (port-forward):**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "microk8s kubectl port-forward svc/my-projectapp-service 3000:80" >> $GITHUB_STEP_SUMMARY
+          echo "microk8s.kubectl port-forward svc/my-projectapp-service 3000:80" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
