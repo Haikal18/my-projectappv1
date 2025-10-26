@@ -100,59 +100,52 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      # 3. Pull latest image from GHCR (convert to lowercase)
+      # 3. Pull latest image from GHCR
       - name: 🔄 Pull latest image from GHCR
-        run: |
-          $IMAGE_LOWERCASE = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest".ToLower()
-          docker pull $IMAGE_LOWERCASE
-        shell: pwsh
+        run: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       # 4. Save and transfer image to WSL2 MicroK8s
       - name: 💾 Save and transfer image to WSL2 MicroK8s
         run: |
-          $IMAGE_LOWERCASE = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest".ToLower()
-          docker save $IMAGE_LOWERCASE -o my-projectapp.tar
-          wsl -- microk8s ctr image import /mnt/c/Users/$env:USERNAME/Desktop/Koding` Mengkoding/CLOUDCOMPUTING/my-projectapp/my-projectapp.tar
-        shell: pwsh
+          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -o my-projectapp.tar
+          wsl -- microk8s ctr image import /mnt/c/actions-runner/_work/my-projectappv1/my-projectappv1/my-projectapp.tar
 
       # 5. Deploy to Kubernetes
       - name: ☸️ Deploy to Kubernetes
         run: |
-          wsl -- microk8s kubectl apply -f /mnt/c/Users/$env:USERNAME/Desktop/Koding` Mengkoding/CLOUDCOMPUTING/my-projectapp/k8s-deployment.yaml
-        shell: pwsh
+          wsl -- microk8s kubectl apply -f - <<EOF
+          $(cat k8s-deployment.yaml)
+          EOF
           
       # 6. Wait for deployment rollout
       - name: ⏳ Wait for deployment rollout
         run: |
           wsl -- microk8s kubectl rollout status deployment/my-projectapp -n default --timeout=300s
-        shell: pwsh
           
       # 7. Verify deployment
       - name: ✅ Verify deployment
         run: |
-          echo "### ✨ Deployment Status" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          wsl -- microk8s kubectl get pods -l app=my-projectapp | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          wsl -- microk8s kubectl get svc my-projectapp-service | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          wsl -- microk8s kubectl get hpa my-projectapp-hpa 2>$null | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
-        shell: pwsh
+          echo "### ✨ Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          wsl -- microk8s kubectl get pods -l app=my-projectapp >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          wsl -- microk8s kubectl get svc my-projectapp-service >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          wsl -- microk8s kubectl get hpa my-projectapp-hpa 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
           
       # 8. Get service URL
       - name: 🌐 Get Service URL
         run: |
-          $SERVICE_IP = wsl -- microk8s kubectl get svc my-projectapp-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-          if ([string]::IsNullOrEmpty($SERVICE_IP)) {
-            $SERVICE_IP = wsl -- microk8s kubectl get svc my-projectapp-service -o jsonpath='{.spec.clusterIP}'
-          }
-          echo "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "**🎯 Access your app at:** http://$SERVICE_IP" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "**Local access (port-forward):**" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo '```bash' | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo "wsl -- microk8s kubectl port-forward svc/my-projectapp-service 3000:80" | Out-File -Append $env:GITHUB_STEP_SUMMARY
-          echo '```' | Out-File -Append $env:GITHUB_STEP_SUMMARY
-        shell: pwsh
+          SERVICE_IP=$(wsl -- microk8s kubectl get svc my-projectapp-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          if [ -z "$SERVICE_IP" ]; then
+            SERVICE_IP=$(wsl -- microk8s kubectl get svc my-projectapp-service -o jsonpath='{.spec.clusterIP}')
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**🎯 Access your app at:** http://$SERVICE_IP" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Local access (port-forward):**" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "wsl -- microk8s kubectl port-forward svc/my-projectapp-service 3000:80" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
