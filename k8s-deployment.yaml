@@ -1,7 +1,30 @@
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-projectapp
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-projectapp-config
+  namespace: my-projectapp
+data:
+  NODE_ENV: "production"
+  NEXT_TELEMETRY_DISABLED: "1"
+  PORT: "3000"
+  HOSTNAME: "0.0.0.0"
+
+---
+# Deployment
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: my-projectapp
+  namespace: my-projectapp
   labels:
     app: my-projectapp
 spec:
@@ -14,66 +37,90 @@ spec:
       labels:
         app: my-projectapp
     spec:
-      imagePullSecrets:
-      - name: ghcr-secret
       containers:
-      - name: my-projectapp
-        image: ghcr.io/haikal18/my-projectappv1/my-projectapp:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 3000
-          protocol: TCP
-        env:
-        - name: NODE_ENV
-          value: "production"
-        - name: PORT
-          value: "3000"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 3
-          failureThreshold: 3
+        - name: my-projectapp
+          image: ghcr.io/haikal18/my-projectappv1/my-projectapp:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: my-projectapp-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      restartPolicy: Always
 
 ---
+# Service
 apiVersion: v1
 kind: Service
 metadata:
   name: my-projectapp-service
+  namespace: my-projectapp
   labels:
     app: my-projectapp
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: my-projectapp
   ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 3000
-    name: http
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+      name: http
 
 ---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-projectapp-ingress
+  namespace: my-projectapp
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: my-projectapp.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-projectapp-service
+                port:
+                  number: 80
+
+---
+# HorizontalPodAutoscaler
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: my-projectapp-hpa
+  namespace: my-projectapp
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -82,15 +129,15 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
