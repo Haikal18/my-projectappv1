@@ -12,7 +12,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/my-projectappv1/my-projectapp
+  IMAGE_NAME: haikal18/my-projectappv1/my-projectapp
 
 jobs:
   # Job 1: Build dan Push Image
