@@ -14,10 +14,12 @@ spec:
       labels:
         app: my-projectapp
     spec:
+      imagePullSecrets:
+      - name: ghcr-secret
       containers:
       - name: my-projectapp
-        image: my-projectapp:latest
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/haikal18/my-projectappv1/my-projectapp:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 3000
           protocol: TCP

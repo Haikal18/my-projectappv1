@@ -1,36 +1,151 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🚀 My Project App - Next.js with CI/CD
 
-## Getting Started
+This is a [Next.js](https://nextjs.org) project with full CI/CD pipeline using GitHub Actions and Kubernetes (MicroK8s).
 
-First, run the development server:
+## 📋 Features
+
+- ⚡ **Next.js 15** - Latest React framework
+- 🐳 **Docker** - Containerized application
+- ☸️ **Kubernetes** - Orchestration with MicroK8s
+- 🔄 **CI/CD** - Automated deployment with GitHub Actions
+- 📦 **GHCR** - GitHub Container Registry for images
+- 🎨 **Tailwind CSS** - Utility-first CSS framework
+- 🔧 **TypeScript** - Type-safe development
+
+## 🚀 Quick Start
+
+### Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Install dependencies
+pnpm install
+
+# Run development server
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see your app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Build image
+docker build -t my-projectapp .
 
-## Learn More
+# Run container
+docker run -p 3000:3000 my-projectapp
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 🔄 CI/CD Pipeline
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Alur CI/CD
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+Developer push ke main
+        ↓
+GitHub Actions Build Docker Image
+        ↓
+Push Image ke GHCR
+        ↓
+Deploy Otomatis ke Kubernetes (MicroK8s)
+        ↓
+Aplikasi Running di Cluster
+```
 
-## Deploy on Vercel
+### Setup CI/CD
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Quick Setup (Recommended):**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Di WSL2, jalankan script setup
+chmod +x setup-runner.sh
+./setup-runner.sh
+```
+
+**Manual Setup:**
+Lihat dokumentasi lengkap di [DEPLOYMENT-SETUP.md](./DEPLOYMENT-SETUP.md)
+
+### Deploy
+
+Push ke branch `main` akan otomatis trigger deployment:
+
+```bash
+git add .
+git commit -m "feat: new feature"
+git push origin main
+```
+
+### Monitoring
+
+```bash
+# Gunakan monitoring script
+chmod +x monitor.sh
+./monitor.sh
+
+# Atau manual
+microk8s kubectl get pods -l app=my-projectapp
+microk8s kubectl logs -l app=my-projectapp -f
+```
+
+## 📚 Documentation
+
+- **[CI-CD-QUICKSTART.md](./CI-CD-QUICKSTART.md)** - Panduan cepat CI/CD
+- **[DEPLOYMENT-SETUP.md](./DEPLOYMENT-SETUP.md)** - Setup lengkap dan troubleshooting
+
+## 🛠️ Scripts
+
+| Script | Description |
+|--------|-------------|
+| `pnpm dev` | Run development server |
+| `pnpm build` | Build production app |
+| `pnpm start` | Start production server |
+| `pnpm lint` | Run ESLint |
+| `./setup-runner.sh` | Setup MicroK8s & GitHub Runner |
+| `./quick-deploy.sh` | Deploy ke Kubernetes |
+| `./monitor.sh` | Monitor deployment |
+
+## 🏗️ Project Structure
+
+```
+.
+├── app/                    # Next.js app directory
+├── components/             # React components
+├── lib/                    # Utilities
+├── public/                 # Static assets
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml      # GitHub Actions workflow
+├── k8s-deployment.yaml    # Kubernetes manifests
+├── Dockerfile             # Docker configuration
+├── docker-compose.yml     # Docker Compose
+└── *.sh                   # Helper scripts
+```
+
+## 🔧 Tech Stack
+
+- **Framework:** Next.js 15
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS
+- **Container:** Docker
+- **Orchestration:** Kubernetes (MicroK8s)
+- **CI/CD:** GitHub Actions
+- **Registry:** GitHub Container Registry (GHCR)
+
+## 🎯 Kubernetes Features
+
+- ✅ **3 Replicas** - High availability
+- ✅ **Auto-scaling** - HPA based on CPU/Memory
+- ✅ **Health Checks** - Liveness & Readiness probes
+- ✅ **Load Balancer** - Service exposed externally
+- ✅ **Resource Limits** - CPU & Memory constraints
+
+## 📖 Learn More
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [Docker Documentation](https://docs.docker.com/)
+- [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+
+## 📝 License
+
+MIT
