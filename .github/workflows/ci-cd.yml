@@ -12,7 +12,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/my-projectapp
+  IMAGE_NAME: ${{ github.repository_owner }}/my-projectappv1/my-projectapp
 
 jobs:
   # Job 1: Build dan Push Image
@@ -47,6 +47,10 @@ jobs:
             type=raw,value=latest
             type=sha,format=short,prefix=
             type=ref,event=branch
+          flavor: |
+            latest=auto
+          # Ensure lowercase
+          sep-tags: ','
 
       # 5. Build and push Docker image
       - name: 🏗️ Build and Push Docker image
@@ -96,14 +100,18 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      # 3. Pull latest image from GHCR
+      # 3. Pull latest image from GHCR (convert to lowercase)
       - name: 🔄 Pull latest image from GHCR
-        run: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: |
+          $IMAGE_LOWERCASE = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest".ToLower()
+          docker pull $IMAGE_LOWERCASE
+        shell: pwsh
 
       # 4. Save and transfer image to WSL2 MicroK8s
       - name: 💾 Save and transfer image to WSL2 MicroK8s
         run: |
-          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -o my-projectapp.tar
+          $IMAGE_LOWERCASE = "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest".ToLower()
+          docker save $IMAGE_LOWERCASE -o my-projectapp.tar
           wsl -- microk8s ctr image import /mnt/c/Users/$env:USERNAME/Desktop/Koding` Mengkoding/CLOUDCOMPUTING/my-projectapp/my-projectapp.tar
         shell: pwsh
 
