@@ -13,6 +13,8 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: haikal18/my-projectappv1/my-projectapp
+  CONTAINER_NAME: my-projectapp
+  HOST_PORT: 3000
 
 jobs:
   # Job 1: Build dan Push Image
@@ -49,8 +51,6 @@ jobs:
             type=ref,event=branch
           flavor: |
             latest=auto
-          # Ensure lowercase
-          sep-tags: ','
 
       # 5. Build and push Docker image
       - name: 🏗️ Build and Push Docker image
@@ -83,67 +83,123 @@ jobs:
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
-  # Job 2: Deploy ke MicroK8s di WSL2
-  deploy-to-k8s:
-    name: Deploy to MicroK8s (WSL2)
+  # Job 2: Deploy ke Self-Hosted Runner
+  deploy-to-docker:
+    name: Deploy to Self-Hosted Docker
     needs: build-and-push
     runs-on: self-hosted
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
-      # 1. Checkout repository untuk mendapatkan file k8s
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-
-      # 2. Login to GHCR untuk pull image
+      # 1. Login to GHCR untuk pull image
       - name: 🔐 Login to GHCR
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      # 3. Pull latest image from GHCR
+      # 2. Pull latest image from GHCR
       - name: 🔄 Pull latest image from GHCR
-        run: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      # 4. Save and transfer image to MicroK8s
-      - name: 💾 Save and transfer image to MicroK8s
+      # 3. Stop dan remove container lama (jika ada)
+      - name: 🛑 Stop and remove old container
         run: |
-          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -o /tmp/my-projectapp.tar
-          microk8s ctr image import /tmp/my-projectapp.tar
+          if [ $(docker ps -a -q -f name=${{ env.CONTAINER_NAME }}) ]; then
+            echo "Stopping existing container..."
+            docker stop ${{ env.CONTAINER_NAME }} || true
+            echo "Removing existing container..."
+            docker rm ${{ env.CONTAINER_NAME }} || true
+          else
+            echo "No existing container found."
+          fi
 
-      # 5. Deploy to Kubernetes
-      - name: ☸️ Deploy to Kubernetes
+      # 4. Run new container
+      - name: 🚀 Run new container
         run: |
-          microk8s kubectl apply -f k8s-deployment.yaml
-          
-      # 6. Wait for deployment rollout
-      - name: ⏳ Wait for deployment rollout
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            -p ${{ env.HOST_PORT }}:3000 \
+            -e NODE_ENV=production \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # 5. Wait for container to be healthy
+      - name: ⏳ Wait for container to be ready
         run: |
-          microk8s kubectl rollout status deployment/my-projectapp -n my-projectapp --timeout=600s
+          echo "Waiting for container to start..."
+          sleep 10
           
+          # Check if container is running
+          if [ $(docker ps -q -f name=${{ env.CONTAINER_NAME }}) ]; then
+            echo "✅ Container is running!"
+          else
+            echo "❌ Container failed to start!"
+            docker logs ${{ env.CONTAINER_NAME }}
+            exit 1
+          fi
+
+      # 6. Health check
+      - name: 🏥 Health check
+        run: |
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+          
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            if curl -f http://localhost:${{ env.HOST_PORT }} > /dev/null 2>&1; then
+              echo "✅ Application is responding!"
+              break
+            else
+              echo "⏳ Waiting for application to respond... (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+              sleep 2
+              ATTEMPT=$((ATTEMPT+1))
+            fi
+          done
+          
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "❌ Application failed to respond after $MAX_ATTEMPTS attempts"
+            docker logs ${{ env.CONTAINER_NAME }}
+            exit 1
+          fi
+
       # 7. Verify deployment
       - name: ✅ Verify deployment
         run: |
           echo "### ✨ Deployment Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Container Status:**" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get pods -l app=my-projectapp -n my-projectapp >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get svc my-projectapp-service -n my-projectapp >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          microk8s kubectl get hpa my-projectapp-hpa -n my-projectapp 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+          docker ps -f name=${{ env.CONTAINER_NAME }} --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-      # 8. Get service URL
+      # 8. Get service info
       - name: 🌐 Get Service URL
         run: |
-          SERVICE_IP=$(microk8s kubectl get svc my-projectapp-service -n my-projectapp -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          if [ -z "$SERVICE_IP" ]; then
-            SERVICE_IP=$(microk8s kubectl get svc my-projectapp-service -n my-projectapp -o jsonpath='{.spec.clusterIP}')
-          fi
+          # Get server IP (gunakan IP lokal atau public IP)
+          SERVER_IP=$(hostname -I | awk '{print $1}')
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**🎯 Access your app at:** http://$SERVICE_IP" >> $GITHUB_STEP_SUMMARY
+          echo "**🎯 Access your app at:**" >> $GITHUB_STEP_SUMMARY
+          echo "- **Local:** http://localhost:${{ env.HOST_PORT }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Network:** http://${SERVER_IP}:${{ env.HOST_PORT }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Local access (port-forward):**" >> $GITHUB_STEP_SUMMARY
+          echo "**🔍 Useful commands:**" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "microk8s kubectl port-forward svc/my-projectapp-service 3000:80 -n my-projectapp" >> $GITHUB_STEP_SUMMARY
+          echo "# View logs" >> $GITHUB_STEP_SUMMARY
+          echo "docker logs ${{ env.CONTAINER_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Follow logs" >> $GITHUB_STEP_SUMMARY
+          echo "docker logs -f ${{ env.CONTAINER_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Container stats" >> $GITHUB_STEP_SUMMARY
+          echo "docker stats ${{ env.CONTAINER_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Restart container" >> $GITHUB_STEP_SUMMARY
+          echo "docker restart ${{ env.CONTAINER_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # 9. Cleanup old images (opsional)
+      - name: 🧹 Cleanup old images
+        run: |
+          echo "Removing unused images..."
+          docker image prune -f
