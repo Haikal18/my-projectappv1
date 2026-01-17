@@ -1,4 +1,4 @@
-# 🚀 My Project App - Next.js with CI/CD
+# 🚀 My Project App - Next.js with CI/CD ver2
 
 This is a [Next.js](https://nextjs.org) project with full CI/CD pipeline using GitHub Actions and Kubernetes (MicroK8s).
 
