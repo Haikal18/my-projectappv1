@@ -10,7 +10,7 @@ export default function Home() {
       <div className="absolute inset-0 -z-10 h-full w-full items-center px-5 py-24 [background:radial-gradient(125%_125%_at_50%_10%,#000_40%,#63e_100%)]"></div>
       
       {/* Profile Template Section */}
-      <section className="w-full mb-8 sm:mb-12 lg:mb-16">
+      <section className="w-full mb-8 sm:mb-12 lg:mb-16 ">
         <ProfileTemplate />
       </section>
 
